@@ -48,4 +48,30 @@ let parseCSV = (csvtext) => {
     return items
 }
 
-export {isFloat, coloringBases, parseCSV}
+const reverseComplement = (seq) => {
+  let res = []
+  let p;
+  for (let b of seq.split("").reverse()) {
+    switch (b) {
+      case 'A':
+        p = 'T'
+        break
+      case 'T':
+        p = 'A'
+        break
+      case 'G':
+        p = 'C'
+        break
+      case 'C':
+        p = 'G'
+        break
+      default:
+        p = 'N'
+        break
+    }
+    res.push(p)
+  }
+  return res.join("")
+}
+
+export {isFloat, coloringBases, parseCSV, reverseComplement}
