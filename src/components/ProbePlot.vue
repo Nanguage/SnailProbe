@@ -6,76 +6,84 @@
 <script>
 import * as d3 from "d3"
 import _ from 'lodash'
-import { reverseComplement } from "@/utils.js"
+import { reverseComplement, getPrimerColors } from "@/utils.js"
 
+const armLength = 13
 
-const getTargetSeq = (primer1, primer2) => {
-  let target = ""
-  const armLength = 13
-  target += reverseComplement(primer1.slice(0, armLength))
-  target += reverseComplement(primer1.slice(primer1.length-armLength, primer1.length))
-  target += reverseComplement(primer2.slice(0, 14))
-  return target
-}
-
-const primersToGraph = (primer1, primer2) => {
-  let g = {
-    nodes: [],
-    links: []
-  }
-  let target = getTargetSeq(primer1, primer2)
-  let seqs = {"p1": primer1, "p2": primer2, "t": target}
-
-  // add all seq's nodes and intra-molecular links
-  for (let [label, seq] of Object.entries(seqs)) {
-    for (let idx=0; idx<seq.length; idx++) {
-      let node = {id: label+"_"+idx, base: seq[idx], label: label}
-      g['nodes'].push(node)
-      if (idx == 0) continue
-      let link = {source: label+"_"+(idx-1),
-                  target: label+"_"+idx,
-                  type: "intra"}
-      g['links'].push(link)
-    }
-  }
-
-  const armLength = 13;
-  // add inter-molecular links
-  for (let idx=0; idx<armLength; idx++) {
-    let link;
-    // p1's head link with target
-    link = {source: "p1_"+idx, target: "t_"+(armLength-1-idx), type:"inter"}
-    g['links'].push(link)
-    // p1's tail link with target
-    let p1_len = seqs["p1"].length
-    link = {source: "p1_"+(p1_len-idx-1), target: "t_"+(armLength+idx), type:"inter"}
-    g['links'].push(link)
-    // p2's link with target
-    let t_len = seqs["t"].length
-    link = {source: "p2_"+idx, target: "t_"+(t_len-1-idx), type:"inter"}
-    g['links'].push(link)
-  }
-  const halfCommon = seqs['p2'].length - armLength - 1;
-  // p2's link with p1
-  for (let idx=0; idx<halfCommon; idx++) {
-    let p1_len = seqs["p1"].length
-    let link = {source: "p2_"+(armLength+1+idx),
-                target: "p1_"+(p1_len-armLength-1-idx),
-                type:"inter"}
-    g['links'].push(link)
-  }
-
-  return g
-}
 
 export default {
   name: 'ProbePlot',
-  props: ['id', 'primer1', 'primer2'],
+  props: ['id', 'primer1', 'primer2', 'color', 'armLength'],
+
+  data: function () {
+    return {
+      targetSeq: this.getTargetSeq(this.primer1, this.primer2)
+    }
+  },
 
   methods: {
+    getTargetSeq(primer1, primer2) {
+      let target = ""
+      target += reverseComplement(primer1.slice(0, this.armLength))
+      target += reverseComplement(primer1.slice(primer1.length-this.armLength, primer1.length))
+      target += reverseComplement(primer2.slice(0, 14))
+      return target
+    },
+
+    primersToGraph (primer1, primer2) {
+      let g = {
+        nodes: [],
+        links: []
+      }
+      let target = this.targetSeq
+      let seqs = {"p1": primer1, "p2": primer2, "t": target}
+    
+      // add all seq's nodes and intra-molecular links
+      for (let [label, seq] of Object.entries(seqs)) {
+        for (let idx=0; idx<seq.length; idx++) {
+          let node = {id: label+"_"+idx, base: seq[idx]}
+          g['nodes'].push(node)
+          if (idx == 0) continue
+          let link = {source: label+"_"+(idx-1),
+                      target: label+"_"+idx,
+                      type: "intra"}
+          g['links'].push(link)
+        }
+      }
+
+      let armLength = this.armLength
+
+      // add inter-molecular links
+      for (let idx=0; idx<armLength; idx++) {
+        let link;
+        // p1's head link with target
+        link = {source: "p1_"+idx, target: "t_"+(armLength-1-idx), type:"inter"}
+        g['links'].push(link)
+        // p1's tail link with target
+        let p1_len = seqs["p1"].length
+        link = {source: "p1_"+(p1_len-idx-1), target: "t_"+(armLength+idx), type:"inter"}
+        g['links'].push(link)
+        // p2's link with target
+        let t_len = seqs["t"].length
+        link = {source: "p2_"+idx, target: "t_"+(t_len-1-idx), type:"inter"}
+        g['links'].push(link)
+      }
+      const halfCommon = seqs['p2'].length - armLength - 1;
+      // p2's link with p1
+      for (let idx=0; idx<halfCommon; idx++) {
+        let p1_len = seqs["p1"].length
+        let link = {source: "p2_"+(armLength+1+idx),
+                    target: "p1_"+(p1_len-armLength-1-idx),
+                    type:"inter"}
+        g['links'].push(link)
+      }
+    
+      return g
+    },
+
     plot() {
       let width = 600, height = 280
-      let G = primersToGraph(this.primer1, this.primer2)
+      let G = this.primersToGraph(this.primer1, this.primer2)
 
       // assign t's position
       let margin = 30
@@ -139,6 +147,10 @@ export default {
           .on("end", dragended);
       }
 
+      let colorsP1 = getPrimerColors(this.primer1, 'p1', this.color, armLength)
+      let colorsP2 = getPrimerColors(this.primer2, 'p2', this.color, armLength)
+      let colorsT  = getPrimerColors(this.targetSeq, 't', this.color, armLength)
+
       let node = svg.append("g")
           .attr("stroke", "#fff")
           .attr("stroke-width", 1.5)
@@ -147,13 +159,14 @@ export default {
           .join("circle")
           .attr("r", 5)
           .attr("fill", (n) => {
-            switch (n.label) {
-              case 'p1':
-                return "#ff9c9c";
-              case 'p2':
-                return "#66ccff";
-              default:
-                return "#ccff55";
+            let [label, idx] = n.id.split("_")
+            idx = parseInt(idx)
+            if (label === 'p1') {
+              return colorsP1[idx]
+            } else if (label === 'p2') {
+              return colorsP2[idx]
+            } else {
+              return colorsT[idx]
             }
           })
           .call(drag(simulation));
